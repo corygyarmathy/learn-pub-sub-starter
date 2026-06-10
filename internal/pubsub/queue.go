@@ -1,0 +1,48 @@
+package pubsub
+
+import (
+	"fmt"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+// SimpleQueueType is an iota for tracking queue types
+type SimpleQueueType int
+
+const (
+	Unknown   SimpleQueueType = iota //  (Acts as a safe default/zero-value)
+	Durable                          //
+	Transient                        //
+)
+
+func DeclareAndBind(
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // SimpleQueueType is an "enum" type I made to represent "durable" or "transient"
+) (*amqp.Channel, amqp.Queue, error) {
+
+	ch, err := conn.Channel()
+	if err != nil {
+		return nil, amqp.Queue{}, fmt.Errorf("failed to create channel for connection: %v", err)
+	}
+
+	queue, err := ch.QueueDeclare(queueName,
+		queueType == Durable,
+		queueType == Transient,
+		queueType == Transient,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, amqp.Queue{}, fmt.Errorf("failed to create queue: %v", err)
+	}
+
+	err = ch.QueueBind(queueName, key, exchange, false, nil)
+	if err != nil {
+		return nil, amqp.Queue{}, fmt.Errorf("failed to bind queue: %v", err)
+	}
+
+	return ch, queue, nil
+}
