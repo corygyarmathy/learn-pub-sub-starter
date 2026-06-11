@@ -10,9 +10,8 @@ import (
 type SimpleQueueType int
 
 const (
-	Unknown   SimpleQueueType = iota //  (Acts as a safe default/zero-value)
-	Durable                          //
-	Transient                        //
+	Durable   SimpleQueueType = iota // Keep this queue after disconnection
+	Transient                        // Do not keep this queue after disconnection
 )
 
 // DeclareAndBind enables you to declare and bind to a queue
