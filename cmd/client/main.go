@@ -34,6 +34,7 @@ func main() {
 
 	gs := gamelogic.NewGameState(username)
 
+	// Subscribe to pause queue
 	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
@@ -43,7 +44,26 @@ func main() {
 		handlerPause(gs),
 	)
 	if err != nil {
-		log.Fatalf("could not subscribe to game state: %v", err)
+		log.Fatalf("could not subscribe to pause queue: %v", err)
+	}
+
+	// Subscribe to other player's move queues
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+gs.Player.Username,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handlerMove(gs),
+	)
+	if err != nil {
+		log.Fatalf("could not subscribe to player's move queues: %v", err)
+	}
+
+	// Create shared channel for players to publish to exchanges
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("could not create publish channel: %v", err)
 	}
 
 	for {
@@ -58,10 +78,21 @@ func main() {
 				log.Fatalf("could not perform command spawn: %v", err)
 			}
 		case "move":
-			_, err := gs.CommandMove(words)
+			move, err := gs.CommandMove(words)
 			if err != nil {
 				log.Fatalf("could not perform command move: %v", err)
 			}
+
+			err = pubsub.PublishJSON(
+				publishCh,
+				routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+gs.Player.Username,
+				move,
+			)
+			if err != nil {
+				log.Fatalf("could not publish move: %v", err)
+			}
+
 			log.Println("Move successful!")
 		case "status":
 			gs.CommandStatus()
