@@ -3,6 +3,7 @@ package pubsub
 import (
 	"fmt"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -33,7 +34,7 @@ func DeclareAndBind(
 		queueType == Transient,
 		queueType == Transient,
 		false,
-		nil,
+		amqp.Table{"x-dead-letter-exchange": routing.ExchangePerilDeadletter},
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, fmt.Errorf("failed to create queue: %v", err)
