@@ -32,18 +32,20 @@ func main() {
 		log.Fatalf("could not get username: %v", err)
 	}
 
-	_, _, err = pubsub.DeclareAndBind(
+	gs := gamelogic.NewGameState(username)
+
+	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
+		routing.PauseKey+"."+gs.Player.Username,
 		routing.PauseKey,
 		pubsub.Transient,
+		handlerPause(gs),
 	)
 	if err != nil {
-		log.Fatalf("could not declare and bind queue: %v", err)
+		log.Fatalf("could not subscribe to game state: %v", err)
 	}
 
-	gamestate := gamelogic.NewGameState(username)
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
@@ -51,18 +53,18 @@ func main() {
 		}
 		switch words[0] {
 		case "spawn":
-			err := gamestate.CommandSpawn(words)
+			err := gs.CommandSpawn(words)
 			if err != nil {
 				log.Fatalf("could not perform command spawn: %v", err)
 			}
 		case "move":
-			_, err := gamestate.CommandMove(words)
+			_, err := gs.CommandMove(words)
 			if err != nil {
 				log.Fatalf("could not perform command move: %v", err)
 			}
 			log.Println("Move successful!")
 		case "status":
-			gamestate.CommandStatus()
+			gs.CommandStatus()
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "quit":
@@ -73,5 +75,4 @@ func main() {
 			continue
 		}
 	}
-
 }
