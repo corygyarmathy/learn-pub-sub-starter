@@ -15,6 +15,7 @@ const (
 	Transient                        //
 )
 
+// DeclareAndBind enables you to declare and bind to a queue
 func DeclareAndBind(
 	conn *amqp.Connection,
 	exchange,
