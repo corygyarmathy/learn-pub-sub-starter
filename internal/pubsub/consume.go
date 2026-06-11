@@ -8,13 +8,22 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// AckType is an iota for tracking acknowledge types to messages
+type AckType int
+
+const (
+	Ack         AckType = iota //  Acknowledge the message
+	NackRequeue                //  Nack the message, try again
+	NackDiscard                //  Nack the meaggage, do not try again
+)
+
 func SubscribeJSON[T any](
 	conn *amqp.Connection,
 	exchange,
 	queueName,
 	key string,
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 	// Make sure that the given queue exists and is bound to the exchange
 	ch, queue, err := DeclareAndBind(
@@ -63,11 +72,29 @@ func SubscribeJSON[T any](
 				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue
 			}
-			handler(target)
-			err = msg.Ack(false)
-			if err != nil {
-				fmt.Printf("could not acknowledge message: %v\n", err)
-				continue
+
+			switch handler(target) {
+			case Ack:
+				err = msg.Ack(false)
+				if err != nil {
+					fmt.Printf("could not acknowledge message: %v\n", err)
+					continue
+				}
+				log.Println("Ack'd message.")
+			case NackRequeue:
+				err = msg.Nack(false, true)
+				if err != nil {
+					fmt.Printf("could not nack and requeue message: %v\n", err)
+					continue
+				}
+				log.Println("Nack'd message. Requeuing.")
+			case NackDiscard:
+				err = msg.Nack(false, false)
+				if err != nil {
+					fmt.Printf("could not nack and discard message: %v\n", err)
+					continue
+				}
+				log.Println("Nack'd message. Discarding.")
 			}
 		}
 	}()
