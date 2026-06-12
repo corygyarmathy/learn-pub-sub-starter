@@ -25,6 +25,11 @@ func main() {
 			log.Fatalf("RabbitMQ connection error: %v", cerr)
 		}
 	}()
+	// Create shared channel for players to publish to exchanges
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("could not create publish channel: %v", err)
+	}
 
 	// Prompt user for username
 	username, err := gamelogic.ClientWelcome()
@@ -54,16 +59,23 @@ func main() {
 		routing.ArmyMovesPrefix+"."+gs.Player.Username,
 		routing.ArmyMovesPrefix+".*",
 		pubsub.Transient,
-		handlerMove(gs),
+		handlerMove(gs, publishCh),
 	)
 	if err != nil {
 		log.Fatalf("could not subscribe to player's move queues: %v", err)
 	}
 
-	// Create shared channel for players to publish to exchanges
-	publishCh, err := conn.Channel()
+	// Subscribe to war move outcomes
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.Durable,
+		handlerWar(gs),
+	)
 	if err != nil {
-		log.Fatalf("could not create publish channel: %v", err)
+		log.Fatalf("could not subscribe to war move outcomes: %v", err)
 	}
 
 	for {
