@@ -1,3 +1,4 @@
+// Package gamelogic is an internal package for managing game logic (internally)
 package gamelogic
 
 import (
