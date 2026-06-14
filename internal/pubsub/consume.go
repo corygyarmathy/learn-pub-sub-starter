@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,13 +19,14 @@ const (
 	NackDiscard                //  Nack the meaggage, do not try again
 )
 
-func SubscribeJSON[T any](
+func subscribe[T any](
 	conn *amqp.Connection,
 	exchange,
 	queueName,
 	key string,
-	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
+	queueType SimpleQueueType,
 	handler func(T) AckType,
+	unmarshaller func([]byte) (T, error),
 ) error {
 	// Make sure that the given queue exists and is bound to the exchange
 	ch, queue, err := DeclareAndBind(
@@ -48,12 +51,6 @@ func SubscribeJSON[T any](
 	)
 	if err != nil {
 		return fmt.Errorf("could not consume channel: %v", err)
-	}
-
-	unmarshaller := func(data []byte) (T, error) {
-		var target T
-		err := json.Unmarshal(data, &target)
-		return target, err
 	}
 
 	// Concurrently receive channel messages
@@ -98,6 +95,53 @@ func SubscribeJSON[T any](
 			}
 		}
 	}()
+
+	return nil
+}
+
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	unmarshaller := func(data []byte) (T, error) {
+		var target T
+		err := json.Unmarshal(data, &target)
+		return target, err
+	}
+
+	err := subscribe(conn, exchange, queueName, key, queueType, handler, unmarshaller)
+	if err != nil {
+		return fmt.Errorf("could not subscribe to JSON: %v", err)
+	}
+
+	return nil
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	unmarshaller := func(data []byte) (T, error) {
+		buffer := bytes.NewBuffer(data)
+		decoder := gob.NewDecoder(buffer)
+
+		var target T
+		err := decoder.Decode(&target)
+		return target, err
+	}
+
+	err := subscribe(conn, exchange, queueName, key, queueType, handler, unmarshaller)
+	if err != nil {
+		return fmt.Errorf("could not subscribe to Gob: %v", err)
+	}
 
 	return nil
 }
