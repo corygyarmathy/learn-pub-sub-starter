@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Check if the number of instances was provided
 if [ -z "$1" ]; then
@@ -24,7 +24,7 @@ cleanup() {
 trap 'cleanup' SIGINT
 
 # Start the specified number of instances of the program in the background
-for (( i=0; i<num_instances; i++ )); do
+for ((i = 0; i < num_instances; i++)); do
   go run ./cmd/server &
   pids+=($!)
 done
